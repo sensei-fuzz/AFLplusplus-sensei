@@ -2483,6 +2483,8 @@ int main(int argc, char **argv_orig, char **envp) {
   OKF("Writing mutation introspection to '%s'", ifn);
   #endif
 
+  if (getenv("SYNC_DISSECTOR_DIR")) afl->sync_dissector_dir = getenv("SYNC_DISSECTOR_DIR"); 
+
   while (likely(!afl->stop_soon)) {
 
     cull_queue(afl);
@@ -2769,6 +2771,8 @@ int main(int argc, char **argv_orig, char **envp) {
         }
 
       }
+
+      if (afl->sync_dissector_dir) sync_dissectors(afl);
 
       skipped_fuzz = fuzz_one(afl);
   #ifdef INTROSPECTION

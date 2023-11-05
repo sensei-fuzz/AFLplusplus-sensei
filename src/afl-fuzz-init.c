@@ -1845,6 +1845,14 @@ static void handle_existing_out_dir(afl_state_t *afl) {
 
   }
 
+  if (getenv("SYNC_DISSECTOR_DIR")) {
+
+    fn = alloc_printf("%s/.sync_dissector", afl->out_dir);
+    if (delete_files(fn, NULL)) { goto dir_cleanup_failed; }
+    ck_free(fn);
+
+  }
+
   /* Next, we need to clean up <afl->out_dir>/queue/.state/ subdirectories: */
 
   fn = alloc_printf("%s/queue/.state/deterministic_done", afl->out_dir);
@@ -2175,6 +2183,10 @@ void setup_dirs_fds(afl_state_t *afl) {
     ck_free(tmp);
 
   }
+
+  tmp = alloc_printf("%s/.sync_dissector/", afl->out_dir);
+  if (mkdir(tmp, 0700)) { PFATAL("Unable to create '%s'", tmp); }
+  ck_free(tmp);
 
   /* All recorded crashes. */
 

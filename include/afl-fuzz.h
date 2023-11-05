@@ -487,12 +487,15 @@ typedef struct afl_state {
       *tmp_dir,                         /* Temporary directory for input    */
       *sync_dir,                        /* Synchronization directory        */
       *sync_id,                         /* Fuzzer ID                        */
+      *sync_dissector_dir,              /* Dissector LibFuzzer Sync         */
       *power_name,                      /* Power schedule name              */
       *use_banner,                      /* Display banner                   */
       *in_bitmap,                       /* Input bitmap                     */
       *file_extension,                  /* File extension                   */
       *orig_cmdline,                    /* Original command line            */
       *infoexec;                       /* Command to execute on a new crash */
+  
+  time_t sync_dissector_mtime;          /* For dissector sync               */
 
   u32 hang_tmout,                       /* Timeout used for hang det (ms)   */
       stats_update_freq;                /* Stats update frequency (execs)   */
@@ -1158,6 +1161,7 @@ int  statsd_format_metric(afl_state_t *afl, char *buff, size_t bufflen);
 /* Run */
 
 void sync_fuzzers(afl_state_t *);
+void sync_dissectors(afl_state_t *);
 u32  write_to_testcase(afl_state_t *, void **, u32, u32);
 u8   calibrate_case(afl_state_t *, struct queue_entry *, u8 *, u32, u8);
 u8   trim_case(afl_state_t *, struct queue_entry *, u8 *);

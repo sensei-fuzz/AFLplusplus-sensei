@@ -872,6 +872,117 @@ void sync_fuzzers(afl_state_t *afl) {
 
 }
 
+
+
+void sync_dissectors(afl_state_t *afl) {
+
+  DIR           *sd;
+  // struct dirent *sd_ent;
+  // u32            sync_cnt = 0, synced = 0, entries = 0;
+  u8             path[PATH_MAX + 1 + NAME_MAX];
+
+  if (!afl->sync_dissector_dir) return ;
+
+  sd = opendir(afl->sync_dissector_dir);
+  if (!sd) { PFATAL("Unable to open '%s'", afl->sync_dissector_dir); }
+
+  struct dirent **namelist = NULL;
+  int             m = 0, n, o;
+
+  n = scandir(afl->sync_dissector_dir, &namelist, NULL, alphasort);
+
+  if (n < 1) {
+
+    goto close_sync;
+
+  }
+
+  // snprintf(afl->stage_name_buf, STAGE_BUF_SIZE, "sync %u", ++sync_cnt);
+
+  afl->stage_name = "sync libfuzzer";
+  afl->stage_cur = 0;
+  afl->stage_max = 0;
+
+
+  /* For every file queued by this fuzzer, parse Last Modification Date and see if we have
+     looked at it before; exec a test case if not. */
+  time_t current_maxium_mtime = 0;
+
+  for (o = m; o < n; o++) {
+
+    s32         fd;
+    struct stat st;
+
+    snprintf(path, sizeof(path), "%s/%s", afl->sync_dissector_dir, namelist[o]->d_name);
+    // afl->syncing_case = next_min_accept;
+    // next_min_accept++;
+
+    if (namelist[o]->d_name[0] == '.') continue;
+
+    /* Allow this to fail in case the other fuzzer is resuming or so... */
+
+    fd = open(path, O_RDONLY);
+
+    if (fd < 0) { continue; }
+
+    if (fstat(fd, &st)) { WARNF("fstat() failed"); continue;}
+
+    if (current_maxium_mtime < st.st_mtime) current_maxium_mtime = st.st_mtime;
+
+    if (afl->sync_dissector_mtime >= st.st_mtime) continue;
+
+    ACTF("Trying to import seed '%s' from dissector.", namelist[o]->d_name);
+
+    /* Ignore zero-sized or oversized files. */
+
+    if (st.st_size && st.st_size <= MAX_FILE) {
+
+      u8  fault;
+      u8 *mem = mmap(0, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+
+      if (mem == MAP_FAILED) { PFATAL("Unable to mmap '%s'", path); }
+
+      /* See what happens. We rely on save_if_interesting() to catch major
+         errors and save the test case. */
+
+      (void)write_to_testcase(afl, (void **)&mem, st.st_size, 1);
+
+      fault = fuzz_run_target(afl, &afl->fsrv, afl->fsrv.exec_tmout);
+
+      if (afl->stop_soon) { goto close_sync; }
+
+      // afl->syncing_party = sd_ent->d_name;
+      if (save_if_interesting(afl, mem, st.st_size, fault)) {
+
+        afl->queued_imported += 1;
+        OKF("Imported seed '%s' from dissector.", namelist[o]->d_name);
+          
+      }
+      // afl->syncing_party = 0;
+
+      munmap(mem, st.st_size);
+
+    }
+
+    close(fd);
+
+  }
+  afl->sync_dissector_mtime = current_maxium_mtime;
+
+close_sync:
+  if (n > 0)
+    for (m = 0; m < n; m++)
+      free(namelist[m]);
+  free(namelist);
+
+  closedir(sd);
+
+  afl->last_sync_time = get_cur_time();
+  afl->last_sync_cycle = afl->queue_cycle;
+
+
+}
+
 /* Trim all new test cases to save cycles when doing deterministic checks. The
    trimmer uses power-of-two increments somewhere between 1/16 and 1/1024 of
    file size, to keep the stage short and sweet. */
